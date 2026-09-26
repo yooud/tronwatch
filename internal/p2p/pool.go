@@ -13,7 +13,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 // Pool runs independent reconnecting peer clients into one serialized transaction stream.

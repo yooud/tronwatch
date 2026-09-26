@@ -15,8 +15,8 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"tronwatch/internal/filter"
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 var (

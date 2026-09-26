@@ -10,7 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/filter"
 )
 
 // Failure identifies a source whose refresh failed while its last good snapshot stayed active.

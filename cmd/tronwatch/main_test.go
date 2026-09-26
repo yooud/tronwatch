@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"tronwatch/internal/store"
-	appversion "tronwatch/internal/version"
+	"github.com/yooud/tronwatch/internal/store"
+	appversion "github.com/yooud/tronwatch/internal/version"
 )
 
 func TestRunVersion(t *testing.T) {

@@ -18,7 +18,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w -X tronwatch/internal/version.Value={{ .Version }}
+      - -s -w -X github.com/yooud/tronwatch/internal/version.Value={{ .Version }}
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:

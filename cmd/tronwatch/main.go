@@ -16,14 +16,14 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"tronwatch/internal/app"
-	appconfig "tronwatch/internal/config"
-	"tronwatch/internal/filter"
-	"tronwatch/internal/ingest"
-	"tronwatch/internal/model"
-	"tronwatch/internal/p2p"
-	"tronwatch/internal/store"
-	appversion "tronwatch/internal/version"
+	"github.com/yooud/tronwatch/internal/app"
+	appconfig "github.com/yooud/tronwatch/internal/config"
+	"github.com/yooud/tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/ingest"
+	"github.com/yooud/tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/p2p"
+	"github.com/yooud/tronwatch/internal/store"
+	appversion "github.com/yooud/tronwatch/internal/version"
 )
 
 func main() {

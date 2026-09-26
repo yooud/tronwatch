@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 // Role describes how an address participates in a transaction.

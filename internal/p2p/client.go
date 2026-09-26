@@ -14,8 +14,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"tronwatch/internal/protocol"
-	appversion "tronwatch/internal/version"
+	"github.com/yooud/tronwatch/internal/protocol"
+	appversion "github.com/yooud/tronwatch/internal/version"
 )
 
 const (

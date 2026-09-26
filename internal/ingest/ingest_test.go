@@ -10,10 +10,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"tronwatch/internal/filter"
-	"tronwatch/internal/model"
-	"tronwatch/internal/p2p"
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/p2p"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 func TestHandleTransactionStoresExactMatchedRecord(t *testing.T) {

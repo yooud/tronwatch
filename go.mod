@@ -1,4 +1,4 @@
-module tronwatch
+module github.com/yooud/tronwatch
 
 go 1.25.13
 

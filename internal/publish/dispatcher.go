@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 type outbox interface {

@@ -10,7 +10,7 @@ import (
 	"github.com/golang/snappy"
 	"google.golang.org/protobuf/proto"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 const (

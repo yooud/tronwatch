@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"tronwatch/internal/model"
-	"tronwatch/internal/store"
+	"github.com/yooud/tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/store"
 )
 
 func TestDispatcherAcknowledgesOnlySuccessfulDelivery(t *testing.T) {

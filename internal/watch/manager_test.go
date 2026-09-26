@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 func TestManagerUnionsSourcesAndKeepsLastGoodSnapshot(t *testing.T) {

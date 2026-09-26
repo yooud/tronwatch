@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"tronwatch/internal/filter"
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 func TestHTTPSourceLoadsAuthenticatedSnapshot(t *testing.T) {

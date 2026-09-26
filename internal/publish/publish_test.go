@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 func TestEventIDIsStablePerObservation(t *testing.T) {

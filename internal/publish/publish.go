@@ -18,7 +18,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 type Event = model.Event

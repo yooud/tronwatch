@@ -14,7 +14,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 func TestBlockIDUsesTRONHeaderHashFormat(t *testing.T) {

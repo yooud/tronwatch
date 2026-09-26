@@ -15,10 +15,10 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"tronwatch/internal/filter"
-	"tronwatch/internal/model"
-	"tronwatch/internal/p2p"
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/p2p"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 type watchSource interface {

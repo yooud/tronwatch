@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
-	"tronwatch/internal/config"
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/config"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 func TestConfiguredAppStartsAndStopsWithoutDialOnCanceledContext(t *testing.T) {

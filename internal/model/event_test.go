@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/filter"
 )
 
 func TestProjectEventPayload(t *testing.T) {

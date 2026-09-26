@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"tronwatch/internal/filter"
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 // Duration is a human-readable JSON duration such as "2s".

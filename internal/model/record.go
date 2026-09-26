@@ -4,7 +4,7 @@ package model
 import (
 	"time"
 
-	"tronwatch/internal/filter"
+	"github.com/yooud/tronwatch/internal/filter"
 )
 
 // ChainState separates a fast block observation from canonical and solidified state.

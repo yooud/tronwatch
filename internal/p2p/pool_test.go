@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 func TestSerializedHandlerProcessesOneObservationAtATime(t *testing.T) {

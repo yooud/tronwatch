@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"tronwatch/internal/protocol"
+	"github.com/yooud/tronwatch/internal/protocol"
 )
 
 var benchmarkMatches []Match

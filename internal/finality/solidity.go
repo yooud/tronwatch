@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 // SoliditySource fetches /walletsolidity/getnowblock without treating height alone as finality.

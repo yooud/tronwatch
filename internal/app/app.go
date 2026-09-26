@@ -13,15 +13,15 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"tronwatch/internal/config"
-	"tronwatch/internal/finality"
-	"tronwatch/internal/ingest"
-	"tronwatch/internal/model"
-	"tronwatch/internal/observability"
-	"tronwatch/internal/p2p"
-	"tronwatch/internal/publish"
-	"tronwatch/internal/store"
-	"tronwatch/internal/watch"
+	"github.com/yooud/tronwatch/internal/config"
+	"github.com/yooud/tronwatch/internal/finality"
+	"github.com/yooud/tronwatch/internal/ingest"
+	"github.com/yooud/tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/observability"
+	"github.com/yooud/tronwatch/internal/p2p"
+	"github.com/yooud/tronwatch/internal/publish"
+	"github.com/yooud/tronwatch/internal/store"
+	"github.com/yooud/tronwatch/internal/watch"
 )
 
 // App is a configured tronwatch daemon.

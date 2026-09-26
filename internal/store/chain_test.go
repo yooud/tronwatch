@@ -9,7 +9,7 @@ import (
 
 	bolt "go.etcd.io/bbolt"
 
-	"tronwatch/internal/model"
+	"github.com/yooud/tronwatch/internal/model"
 )
 
 func TestApplyBlockReorgsOnlyToLongerConnectedBranch(t *testing.T) {
