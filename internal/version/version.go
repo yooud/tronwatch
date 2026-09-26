@@ -2,4 +2,4 @@
 package version
 
 // Value is the source version. Release builds override it through a linker flag.
-var Value = "0.4.1"
+var Value = "0.5.0"
