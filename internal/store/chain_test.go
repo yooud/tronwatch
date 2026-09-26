@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -11,6 +12,65 @@ import (
 
 	"github.com/yooud/tronwatch/internal/model"
 )
+
+func TestChainLocatorStartsAtFinalizedBlockAndConvergesOnTip(t *testing.T) {
+	db := openChainTestDB(t)
+	seen := time.Unix(1_700_000_000, 0).UTC()
+	parent := "a09"
+	for height := int64(10); height <= 17; height++ {
+		id := fmt.Sprintf("a%d", height)
+		applyBlock(t, db, testBlock(id, parent, height, seen.Add(time.Duration(height-10)*3*time.Second)))
+		parent = id
+	}
+	if _, err := db.Finalize(model.SolidBlock{ID: "a12", Number: 12, ObservedAt: seen.Add(time.Minute)}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.ChainLocator(30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []model.BlockRef{{ID: "a12", Number: 12}, {ID: "a15", Number: 15}, {ID: "a17", Number: 17}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ChainLocator() = %+v, want %+v", got, want)
+	}
+}
+
+func TestChainLocatorReturnsEmptyForUnanchoredDatabase(t *testing.T) {
+	db := openChainTestDB(t)
+	got, err := db.ChainLocator(30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("ChainLocator() = %+v, want empty", got)
+	}
+}
+
+func TestApplyBlockConnectsPreviouslyUnresolvedCanonicalExtension(t *testing.T) {
+	db := openChainTestDB(t)
+	seen := time.Unix(1_700_000_000, 0).UTC()
+	applyBlock(t, db, testBlock("a10", "a09", 10, seen))
+	update := applyBlock(t, db, testBlock("a12", "a11", 12, seen.Add(6*time.Second)))
+	if !update.Unresolved {
+		t.Fatalf("future block update = %+v, want unresolved", update)
+	}
+
+	update, err := db.ApplyBlock(testBlock("a11", "a10", 11, seen.Add(3*time.Second)), nil)
+	if err != nil {
+		t.Fatalf("ApplyBlock(parent) error = %v", err)
+	}
+	if !update.Canonical || update.NewTipID != "a12" {
+		t.Fatalf("connected extension update = %+v, want canonical tip a12", update)
+	}
+	status, err := db.ChainStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.TipID != "a12" || status.TipNumber != 12 || status.UnresolvedBlocks != 0 {
+		t.Fatalf("chain status = %+v, want resolved tip a12/12", status)
+	}
+}
 
 func TestApplyBlockReorgsOnlyToLongerConnectedBranch(t *testing.T) {
 	db := openChainTestDB(t)

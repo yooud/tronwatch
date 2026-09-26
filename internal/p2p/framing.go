@@ -16,15 +16,18 @@ import (
 const (
 	maxMessageSize = 5 * 1024 * 1024
 
-	messageTransaction  = byte(0x01)
-	messageBlock        = byte(0x02)
-	messageTransactions = byte(0x03)
-	messageInventory    = byte(0x06)
-	messageFetchData    = byte(0x07)
-	messageHello        = byte(0x20)
-	messageDisconnect   = byte(0x21)
-	messagePing         = byte(0x22)
-	messagePong         = byte(0x23)
+	messageTransaction         = byte(0x01)
+	messageBlock               = byte(0x02)
+	messageTransactions        = byte(0x03)
+	messageInventory           = byte(0x06)
+	messageFetchData           = byte(0x07)
+	messageSyncBlockChain      = byte(0x08)
+	messageBlockChainInventory = byte(0x09)
+	messageItemNotFound        = byte(0x10)
+	messageHello               = byte(0x20)
+	messageDisconnect          = byte(0x21)
+	messagePing                = byte(0x22)
+	messagePong                = byte(0x23)
 
 	transportPing       = byte(0xff)
 	transportPong       = byte(0xfe)

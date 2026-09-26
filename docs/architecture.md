@@ -1,9 +1,9 @@
 # Architecture
 
 ```text
-TRON peers -> decoders -> serialized ingestion -> matcher -> BoltDB -> publisher workers
-                                                   ^          |
-                                                   |          +-> lifecycle and outbox
+TRON peers -> live/catch-up coordinator -> serialized ingestion -> matcher -> BoltDB -> publisher workers
+                                                              ^          |
+                                                              |          +-> lifecycle and outbox
                 inline / file / HTTP / Redis -> watch union
 Solidity endpoint -> exact solid block ID -----------------> finalizer
 Runtime state ---------------------------------------------> health and metrics
@@ -12,6 +12,10 @@ Runtime state ---------------------------------------------> health and metrics
 ## Processing model
 
 Each peer has an independent connection and reconnect loop. Decoded transactions and whole blocks enter a single ingestion path. This preserves deterministic state changes while still accepting the first useful observation from any peer.
+
+After a restart, a non-empty database builds a sparse locator from its finalized checkpoint through its canonical tip. One eligible peer becomes the catch-up leader, returns the common block and a contiguous inventory, and serves bounded fetch batches. Every block is committed through the normal serialized ingestion path before the next batch advances. The other peers still deliver pending transactions, but live block inventories are held until catch-up explicitly confirms the committed tip at the network head. If the leader fails, another peer resumes from the durable tip after a bounded cooldown.
+
+An empty database does not initiate catch-up from genesis. Historical blocks are filtered with the watchlist active when they are replayed; changing the watchlist does not trigger an older range scan.
 
 The watch manager treats every source as a complete snapshot. It validates a new snapshot before atomically replacing that source's contribution to the union. A temporary refresh error leaves the previous valid contribution active.
 
@@ -50,6 +54,9 @@ A reorganization below the finalized checkpoint is rejected. An unknown parent i
 |---|---|
 | Watch source refresh fails | Keep its last valid snapshot and report the error |
 | One peer disconnects | Reconnect it independently while other peers continue |
+| Catch-up leader disconnects or times out | Release leadership, retain the committed tip, and let another eligible peer resume |
+| Peer cannot serve the persisted tip | Keep catch-up pending and wait for a peer with sufficient retained history |
+| Catch-up response is malformed or non-contiguous | Reject the session without applying unverified progress |
 | Duplicate peer observation arrives | Skip same-state durable writes unless full peer provenance is enabled |
 | Publisher fails | Keep its outbox item and retry without blocking ingestion or other publishers |
 | Process stops during a write | Recover the last committed BoltDB state |
@@ -65,4 +72,4 @@ BoltDB reuses freed pages but does not shrink its file automatically. Physical c
 
 ## Trust boundaries
 
-Peer fan-in is redundancy, not consensus validation. The service trusts decoded peer messages for observation and trusts the configured Solidity endpoint for finality. Use multiple well-operated peers, protect remote watch and publisher endpoints with TLS, and keep the observability listener private unless access controls are provided externally.
+Peer fan-in and catch-up failover provide redundancy, not consensus validation. The service validates P2P framing, block IDs, ancestry, and response continuity, but it does not execute TRON state transitions. It trusts the configured Solidity endpoint for finality. Use multiple well-operated peers, protect remote watch and publisher endpoints with TLS, and keep the observability listener private unless access controls are provided externally.

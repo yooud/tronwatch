@@ -12,6 +12,12 @@ type Block struct {
 	Peer       string    `json:"peer,omitempty"`
 }
 
+// BlockRef is the durable block identity used to build a P2P chain locator.
+type BlockRef struct {
+	ID     string
+	Number int64
+}
+
 // SolidBlock is a checkpoint reported by a trusted TRON Solidity endpoint.
 type SolidBlock struct {
 	ID         string

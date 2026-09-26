@@ -14,16 +14,18 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/yooud/tronwatch/internal/model"
 	"github.com/yooud/tronwatch/internal/protocol"
 	appversion "github.com/yooud/tronwatch/internal/version"
 )
 
 const (
-	transportVersion          = int32(1)
-	transportRejectTimeBanned = int32(3)
-	nodeIDLength              = 64
-	maxFetchIDs               = 100
-	timeBannedRetryDelay      = 65 * time.Second
+	transportVersion           = int32(1)
+	transportRecentDisconnect  = int32(3)
+	nodeIDLength               = 64
+	maxFetchIDs                = 100
+	maxSyncLocatorIDs          = 30
+	recentDisconnectRetryDelay = 65 * time.Second
 )
 
 type transportRejectError struct {
@@ -87,17 +89,28 @@ func (f HandlerFunc) HandleTransaction(
 
 // Config configures one outbound TRON peer connection.
 type Config struct {
-	Peer             string
-	NetworkID        int32
-	AdvertiseIP      string
-	AdvertisePort    int32
-	NodeID           []byte
-	DialTimeout      time.Duration
-	HandshakeTimeout time.Duration
-	ReconnectMin     time.Duration
-	ReconnectMax     time.Duration
-	Logger           *slog.Logger
-	Observer         PeerObserver
+	Peer                  string
+	NetworkID             int32
+	AdvertiseIP           string
+	AdvertisePort         int32
+	NodeID                []byte
+	DialTimeout           time.Duration
+	HandshakeTimeout      time.Duration
+	ReconnectMin          time.Duration
+	ReconnectMax          time.Duration
+	Logger                *slog.Logger
+	Observer              PeerObserver
+	CatchupEnabled        bool
+	CatchupBatchSize      int
+	CatchupRequestTimeout time.Duration
+	Chain                 ChainReader
+	coordinator           *catchupCoordinator
+}
+
+// ChainReader exposes the durable canonical cursor needed for historical synchronization.
+type ChainReader interface {
+	ChainStatus() (model.ChainStatus, error)
+	ChainLocator(maxIDs int) ([]model.BlockRef, error)
 }
 
 // PeerObserver receives bounded operational session state without transaction identifiers.
@@ -113,6 +126,7 @@ type Client struct {
 	handler Handler
 	nodeID  []byte
 	logger  *slog.Logger
+	catchup *catchupCoordinator
 }
 
 // New validates configuration and creates a client.
@@ -145,11 +159,28 @@ func New(config Config, handler Handler) (*Client, error) {
 	if config.ReconnectMax < config.ReconnectMin {
 		return nil, errors.New("reconnect maximum is below minimum")
 	}
+	if config.CatchupEnabled {
+		if config.Chain == nil {
+			return nil, errors.New("catch-up chain reader is nil")
+		}
+		if config.CatchupBatchSize < 1 || config.CatchupBatchSize > maxFetchIDs {
+			return nil, fmt.Errorf("catch-up batch size must be between 1 and %d", maxFetchIDs)
+		}
+		if config.CatchupRequestTimeout <= 0 {
+			return nil, errors.New("catch-up request timeout must be positive")
+		}
+		if config.coordinator == nil {
+			config.coordinator = newCatchupCoordinator(config.CatchupRequestTimeout, config.Observer)
+		}
+	}
 	logger := config.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Client{config: config, handler: handler, nodeID: nodeID, logger: logger}, nil
+	return &Client{
+		config: config, handler: handler, nodeID: nodeID, logger: logger,
+		catchup: config.coordinator,
+	}, nil
 }
 
 // Run reconnects to the configured peer until the context is canceled.
@@ -244,13 +275,13 @@ func (c *Client) runSessionOutcome(ctx context.Context, connection net.Conn) (bo
 	if c.config.Observer != nil {
 		c.config.Observer.PeerHandshaked(c.config.Peer, nodeHello.HeadBlockId.Number, nodeHello.SolidBlockId.Number)
 	}
-	return true, c.readMessages(ctx, connection)
+	return true, c.readMessages(ctx, connection, nodeHello)
 }
 
 func reconnectDelay(err error, backoff time.Duration) time.Duration {
 	var rejected *transportRejectError
-	if errors.As(err, &rejected) && rejected.code == transportRejectTimeBanned {
-		return max(backoff, timeBannedRetryDelay)
+	if errors.As(err, &rejected) && rejected.code == transportRecentDisconnect {
+		return max(backoff, recentDisconnectRetryDelay)
 	}
 	return backoff
 }
@@ -377,8 +408,21 @@ func cloneBlockID(blockID *protocol.BlockID) *protocol.BlockID {
 	return &protocol.BlockID{Hash: bytes.Clone(blockID.Hash), Number: blockID.Number}
 }
 
-func (c *Client) readMessages(ctx context.Context, connection net.Conn) error {
+func (c *Client) readMessages(ctx context.Context, connection net.Conn, peerHello *protocol.TronHello) error {
 	requested := make(map[string]time.Time)
+	session := catchupSession{}
+	if err := c.maybeStartCatchup(connection, peerHello, &session); err != nil {
+		return err
+	}
+	defer func() {
+		if session.active && c.catchup != nil && c.catchup.isLeader(c.config.Peer) {
+			if ctx.Err() == nil {
+				c.catchup.fail(c.config.Peer)
+			} else {
+				c.catchup.stop(c.config.Peer)
+			}
+		}
+	}()
 	for {
 		message, err := receiveCompressedMessage(connection)
 		if err != nil {
@@ -395,13 +439,30 @@ func (c *Client) readMessages(ctx context.Context, connection net.Conn) error {
 		case messagePing:
 			err = sendCompressedRaw(connection, append([]byte{messagePong}, 0xc0))
 		case messageInventory:
-			err = c.fetchInventory(connection, message[1:], requested)
+			err = observeAdvertisedHead(message[1:], peerHello)
+			if err == nil && !session.active {
+				err = c.maybeStartCatchupFromInventory(connection, peerHello, &session)
+			}
+			if err == nil {
+				allowBlocks := c.catchup == nil || !c.catchup.needed()
+				err = c.fetchInventory(connection, message[1:], requested, allowBlocks)
+			}
+		case messageBlockChainInventory:
+			err = c.handleChainInventory(connection, message[1:], requested, peerHello, &session)
 		case messageBlock:
-			err = c.handleRequestedBlock(ctx, message[1:], requested)
+			var block BlockObservation
+			block, err = c.handleRequestedBlockObservation(ctx, message[1:], requested)
+			if err == nil && session.active {
+				err = c.catchupBlockApplied(connection, requested, peerHello, &session, block)
+			}
 		case messageTransactions:
 			err = c.handleTransactions(ctx, message[1:])
 		case messageTransaction:
 			err = c.handleTransaction(ctx, message[1:], Observation{Source: SourceMempool})
+		case messageItemNotFound:
+			if session.active {
+				err = errors.New("peer could not provide a requested catch-up block")
+			}
 		default:
 			continue
 		}
@@ -415,6 +476,7 @@ func (c *Client) fetchInventory(
 	connection net.Conn,
 	payload []byte,
 	requested map[string]time.Time,
+	allowBlocks bool,
 ) error {
 	var inventory protocol.Inventory
 	if err := proto.Unmarshal(payload, &inventory); err != nil {
@@ -423,15 +485,20 @@ func (c *Client) fetchInventory(
 	if inventory.Type != protocol.Inventory_TRX && inventory.Type != protocol.Inventory_BLOCK {
 		return fmt.Errorf("unsupported inventory type %d", inventory.Type)
 	}
+	for _, id := range inventory.Ids {
+		if len(id) != 32 {
+			return fmt.Errorf("inventory id length is %d, want 32", len(id))
+		}
+	}
+	if inventory.Type == protocol.Inventory_BLOCK && !allowBlocks {
+		return nil
+	}
 	trimRequested(requested, time.Now())
 	for start := 0; start < len(inventory.Ids); {
 		fetch := &protocol.Inventory{Type: inventory.Type}
 		for start < len(inventory.Ids) && len(fetch.Ids) < maxFetchIDs {
 			id := inventory.Ids[start]
 			start++
-			if len(id) != 32 {
-				return fmt.Errorf("inventory id length is %d, want 32", len(id))
-			}
 			key := string(append([]byte{byte(inventory.Type)}, id...))
 			if _, exists := requested[key]; exists {
 				continue
@@ -465,22 +532,31 @@ func (c *Client) handleBlock(ctx context.Context, payload []byte) error {
 }
 
 func (c *Client) handleRequestedBlock(ctx context.Context, payload []byte, requested map[string]time.Time) error {
+	_, err := c.handleRequestedBlockObservation(ctx, payload, requested)
+	return err
+}
+
+func (c *Client) handleRequestedBlockObservation(
+	ctx context.Context,
+	payload []byte,
+	requested map[string]time.Time,
+) (BlockObservation, error) {
 	var block protocol.Block
 	if err := proto.Unmarshal(payload, &block); err != nil {
-		return fmt.Errorf("decoding block: %w", err)
+		return BlockObservation{}, fmt.Errorf("decoding block: %w", err)
 	}
 	if block.BlockHeader == nil || block.BlockHeader.RawData == nil {
-		return errors.New("block is missing its header")
+		return BlockObservation{}, errors.New("block is missing its header")
 	}
 	header := block.BlockHeader.RawData
 	id, err := blockID(header)
 	if err != nil {
-		return err
+		return BlockObservation{}, err
 	}
 	if requested != nil {
 		key := string(append([]byte{byte(protocol.Inventory_BLOCK)}, id...))
 		if _, exists := requested[key]; !exists {
-			return fmt.Errorf("peer sent unadvertised block %x", id)
+			return BlockObservation{}, fmt.Errorf("peer sent unadvertised block %x", id)
 		}
 		delete(requested, key)
 	}
@@ -488,7 +564,7 @@ func (c *Client) handleRequestedBlock(ctx context.Context, payload []byte, reque
 	blockNumber := header.Number
 	blockTime := time.UnixMilli(header.Timestamp).UTC()
 	if blockTime.After(observedAt.Add(2 * time.Minute)) {
-		return fmt.Errorf("block timestamp %s is too far in the future", blockTime)
+		return BlockObservation{}, fmt.Errorf("block timestamp %s is too far in the future", blockTime)
 	}
 	blockObservation := BlockObservation{
 		ID: hex.EncodeToString(id), ParentID: hex.EncodeToString(header.ParentHash),
@@ -496,9 +572,9 @@ func (c *Client) handleRequestedBlock(ctx context.Context, payload []byte, reque
 	}
 	if handler, ok := c.handler.(BlockHandler); ok {
 		if err := handler.HandleBlock(ctx, blockObservation, block.Transactions); err != nil {
-			return fmt.Errorf("handling block: %w", err)
+			return BlockObservation{}, fmt.Errorf("handling block: %w", err)
 		}
-		return nil
+		return blockObservation, nil
 	}
 	observation := Observation{
 		Source: SourceBlock, Peer: c.config.Peer, ObservedAt: observedAt,
@@ -506,10 +582,10 @@ func (c *Client) handleRequestedBlock(ctx context.Context, payload []byte, reque
 	}
 	for _, transaction := range block.Transactions {
 		if err := c.handler.HandleTransaction(ctx, transaction, observation); err != nil {
-			return fmt.Errorf("handling block transaction: %w", err)
+			return BlockObservation{}, fmt.Errorf("handling block transaction: %w", err)
 		}
 	}
-	return nil
+	return blockObservation, nil
 }
 
 func blockID(header *protocol.BlockHeaderRaw) ([]byte, error) {

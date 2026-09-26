@@ -35,6 +35,9 @@ func NewPool(peers []string, base Config, handler Handler) (*Pool, error) {
 		return nil, err
 	}
 	seen := make(map[string]struct{}, len(peers))
+	if base.CatchupEnabled && base.coordinator == nil {
+		base.coordinator = newCatchupCoordinator(base.CatchupRequestTimeout, base.Observer)
+	}
 	pool := &Pool{clients: make([]*Client, 0, len(peers))}
 	for _, endpoint := range peers {
 		endpoint = strings.TrimSpace(endpoint)

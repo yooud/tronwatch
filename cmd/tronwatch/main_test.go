@@ -14,6 +14,37 @@ import (
 	appversion "github.com/yooud/tronwatch/internal/version"
 )
 
+func TestLegacyRunPersistsDerivedNodeID(t *testing.T) {
+	directory := t.TempDir()
+	databasePath := filepath.Join(directory, "transactions.db")
+	watchlistPath := filepath.Join(directory, "watchlist.json")
+	if err := os.WriteFile(watchlistPath, []byte(`{"addresses":["411111111111111111111111111111111111111111"]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runOnce := func() []byte {
+		t.Helper()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		var stdout, stderr bytes.Buffer
+		code := run(ctx, []string{
+			"run", "--db", databasePath, "--watchlist", watchlistPath, "--peer", "127.0.0.1:1",
+		}, &stdout, &stderr)
+		if code != 0 {
+			t.Fatalf("run() code = %d, stderr=%q", code, stderr.String())
+		}
+		nodeID, err := os.ReadFile(databasePath + ".node-id")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return nodeID
+	}
+	first := runOnce()
+	second := runOnce()
+	if len(first) != 64 || !bytes.Equal(first, second) {
+		t.Fatalf("legacy node IDs have lengths %d/%d or differ across runs", len(first), len(second))
+	}
+}
+
 func TestRunVersion(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run(context.Background(), []string{"version"}, &stdout, &stderr); code != 0 {

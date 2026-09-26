@@ -49,10 +49,19 @@ type Config struct {
 }
 
 type P2PConfig struct {
-	Peer        string   `json:"peer,omitempty"`
-	Peers       []string `json:"peers,omitempty"`
-	NetworkID   int32    `json:"network_id"`
-	AdvertiseIP string   `json:"advertise_ip"`
+	Peer        string        `json:"peer,omitempty"`
+	Peers       []string      `json:"peers,omitempty"`
+	NetworkID   int32         `json:"network_id"`
+	AdvertiseIP string        `json:"advertise_ip"`
+	NodeIDFile  string        `json:"node_id_file,omitempty"`
+	Catchup     CatchupConfig `json:"catchup"`
+}
+
+// CatchupConfig controls bounded historical block synchronization after downtime.
+type CatchupConfig struct {
+	Enabled        bool     `json:"enabled"`
+	BatchSize      int      `json:"batch_size"`
+	RequestTimeout Duration `json:"request_timeout"`
 }
 
 // PeerList returns the configured endpoints. Peer is retained as a legacy single-peer alias.
@@ -191,7 +200,10 @@ func Load(path string) (Config, error) {
 
 func defaults() Config {
 	return Config{
-		P2P:     P2PConfig{Peer: "127.0.0.1:18888", NetworkID: 201910292, AdvertiseIP: "127.0.0.1"},
+		P2P: P2PConfig{
+			Peer: "127.0.0.1:18888", NetworkID: 201910292, AdvertiseIP: "127.0.0.1",
+			Catchup: CatchupConfig{Enabled: true, BatchSize: 100, RequestTimeout: Duration(10 * time.Second)},
+		},
 		Storage: StorageConfig{Path: "data/transactions.db", EventPayloadMode: model.EventPayloadFull},
 		Watch:   WatchConfig{RefreshInterval: Duration(time.Second)},
 		Logging: LoggingConfig{StatsInterval: Duration(30 * time.Second)},
@@ -235,8 +247,20 @@ func (c *Config) resolveAndValidate() error {
 	if net.ParseIP(c.P2P.AdvertiseIP) == nil {
 		return fmt.Errorf("p2p.advertise_ip %q is invalid", c.P2P.AdvertiseIP)
 	}
+	if c.P2P.Catchup.Enabled {
+		if c.P2P.Catchup.BatchSize < 1 || c.P2P.Catchup.BatchSize > 100 {
+			return errors.New("p2p.catchup batch_size must be between 1 and 100")
+		}
+		if c.P2P.Catchup.RequestTimeout.Duration() <= 0 {
+			return errors.New("p2p.catchup request_timeout must be positive")
+		}
+	}
 	if strings.TrimSpace(c.Storage.Path) == "" {
 		return errors.New("storage.path is empty")
+	}
+	c.P2P.NodeIDFile = strings.TrimSpace(c.P2P.NodeIDFile)
+	if c.P2P.NodeIDFile == "" {
+		c.P2P.NodeIDFile = c.Storage.Path + ".node-id"
 	}
 	if c.Storage.FinalizedRetentionBlocks < 0 {
 		return errors.New("storage.finalized_retention_blocks cannot be negative")

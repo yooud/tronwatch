@@ -30,6 +30,12 @@ func TestLoadAppliesDefaultsAndResolvesSecrets(t *testing.T) {
 	if got.P2P.Peer != "127.0.0.1:18888" || got.P2P.NetworkID != 201910292 {
 		t.Fatalf("P2P defaults = %+v", got.P2P)
 	}
+	if !got.P2P.Catchup.Enabled || got.P2P.Catchup.BatchSize != 100 || got.P2P.Catchup.RequestTimeout.Duration() != 10*time.Second {
+		t.Fatalf("P2P catch-up defaults = %+v", got.P2P.Catchup)
+	}
+	if got.P2P.NodeIDFile != got.Storage.Path+".node-id" {
+		t.Fatalf("P2P node ID file = %q, want storage-derived path", got.P2P.NodeIDFile)
+	}
 	if got.Watch.RefreshInterval.Duration() != time.Second {
 		t.Fatalf("refresh interval = %v, want 1s", got.Watch.RefreshInterval.Duration())
 	}
@@ -38,6 +44,54 @@ func TestLoadAppliesDefaultsAndResolvesSecrets(t *testing.T) {
 	}
 	if got.Storage.PersistAllPeers {
 		t.Fatal("storage.persist_all_peers = true, want optimized default false")
+	}
+}
+
+func TestLoadConfiguresNodeIDFile(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "config.json")
+	nodeIDPath := filepath.Join(directory, "identity", "node-id")
+	data := []byte(`{
+		"p2p":{"node_id_file":"` + nodeIDPath + `"},
+		"watch":{"sources":[{"name":"local","type":"inline","addresses":["411111111111111111111111111111111111111111"]}]}
+	}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.P2P.NodeIDFile != nodeIDPath {
+		t.Fatalf("P2P node ID file = %q, want %q", got.P2P.NodeIDFile, nodeIDPath)
+	}
+}
+
+func TestLoadConfiguresAndValidatesCatchup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	data := []byte(`{
+		"p2p":{"catchup":{"enabled":true,"batch_size":64,"request_timeout":"7s"}},
+		"watch":{"sources":[{"name":"local","type":"inline","addresses":["411111111111111111111111111111111111111111"]}]}
+	}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.P2P.Catchup.Enabled || got.P2P.Catchup.BatchSize != 64 || got.P2P.Catchup.RequestTimeout.Duration() != 7*time.Second {
+		t.Fatalf("catch-up configuration = %+v", got.P2P.Catchup)
+	}
+
+	if err := os.WriteFile(path, []byte(`{
+		"p2p":{"catchup":{"enabled":true,"batch_size":101,"request_timeout":"7s"}},
+		"watch":{"sources":[{"name":"local","type":"inline","addresses":["411111111111111111111111111111111111111111"]}]}
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "catchup batch_size") {
+		t.Fatalf("Load() error = %v, want catchup batch size error", err)
 	}
 }
 
