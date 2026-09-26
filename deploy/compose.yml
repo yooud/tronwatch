@@ -1,0 +1,27 @@
+services:
+  tronwatch:
+    build:
+      context: ..
+    restart: unless-stopped
+    command: ["run", "--config", "/etc/tronwatch/config.json"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:9464:9464"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/tronwatch", "probe", "--url", "http://127.0.0.1:9464/readyz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+    logging:
+      options:
+        max-size: "50m"
+        max-file: "3"
+    volumes:
+      - ./config.docker.example.json:/etc/tronwatch/config.json:ro
+      - ../watchlist.example.json:/etc/tronwatch/watchlist.json:ro
+      - tronwatch-data:/var/lib/tronwatch
+
+volumes:
+  tronwatch-data:

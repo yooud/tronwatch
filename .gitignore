@@ -1,0 +1,8 @@
+/bin/
+/data/
+/watchlist.json
+/config.json
+*.jsonl
+*.db
+*.pprof
+coverage.out

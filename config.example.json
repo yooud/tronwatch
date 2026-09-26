@@ -1,0 +1,66 @@
+{
+  "p2p": {
+    "peers": ["127.0.0.1:18888"],
+    "network_id": 11111,
+    "advertise_ip": "127.0.0.1"
+  },
+  "storage": {
+    "path": "data/transactions.db",
+    "persist_all_peers": false,
+    "sync_freelist": false,
+    "finalized_retention_blocks": 256,
+    "event_payload_mode": "compact_lifecycle"
+  },
+  "watch": {
+    "refresh_interval": "1s",
+    "sources": [
+      {
+        "name": "baseline",
+        "type": "inline",
+        "addresses": ["411111111111111111111111111111111111111111"]
+      },
+      {
+        "name": "local-file",
+        "type": "file",
+        "path": "watchlist.example.json"
+      }
+    ]
+  },
+  "publishers": [
+    {
+      "name": "stdout",
+      "type": "stdout"
+    },
+    {
+      "name": "archive",
+      "type": "jsonl",
+      "path": "data/events.jsonl",
+      "max_bytes": 536870912,
+      "max_files": 4,
+      "batch_size": 500,
+      "flush_interval": "1s",
+      "max_delivery_latency": "1s"
+    }
+  ],
+  "finality": {
+    "url": "https://api.trongrid.io/walletsolidity/getnowblock",
+    "poll_interval": "15s",
+    "timeout": "5s",
+    "max_staleness": "2m",
+    "required": false
+  },
+  "observability": {
+    "listen": "127.0.0.1:9464",
+    "block_stale_after": "30s",
+    "minimum_peers": 1,
+    "outbox_warn_depth": 10000
+  },
+  "runtime": {
+    "minimum_free_bytes": 10737418240,
+    "disk_check_interval": "30s"
+  },
+  "logging": {
+    "json": true,
+    "stats_interval": "30s"
+  }
+}
