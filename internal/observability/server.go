@@ -47,6 +47,12 @@ type Snapshot struct {
 	WatchRefreshFailures        int64
 	PrunedBlocks                int64
 	PrunedTransactions          int64
+	CatchupActive               bool
+	CatchupCurrentHeight        int64
+	CatchupTargetHeight         int64
+	CatchupBlocks               int64
+	CatchupFailovers            int64
+	CatchupFailures             int64
 	DiskFreeBytes               uint64
 }
 
@@ -107,6 +113,9 @@ func (h *handler) ready(writer http.ResponseWriter, _ *http.Request) {
 	}
 	if snapshot.UnresolvedBlocks > 0 {
 		reasons = append(reasons, "unresolved_chain_gap")
+	}
+	if snapshot.CatchupActive {
+		reasons = append(reasons, "historical_catchup")
 	}
 	if snapshot.IntegrityFailure != "" {
 		reasons = append(reasons, "chain_integrity_failure")
@@ -176,6 +185,17 @@ func (h *handler) metrics(writer http.ResponseWriter, _ *http.Request) {
 	metric(&output, "tronwatch_reorg_reincluded_transactions_total", snapshot.ReincludedTransactions)
 	metric(&output, "tronwatch_chain_head_height", snapshot.HeadNumber)
 	metric(&output, "tronwatch_chain_finalized_height", snapshot.FinalizedNumber)
+	catchupActive := 0
+	if snapshot.CatchupActive {
+		catchupActive = 1
+	}
+	metric(&output, "tronwatch_catchup_active", catchupActive)
+	metric(&output, "tronwatch_catchup_current_height", snapshot.CatchupCurrentHeight)
+	metric(&output, "tronwatch_catchup_target_height", snapshot.CatchupTargetHeight)
+	metric(&output, "tronwatch_catchup_lag_blocks", max(0, snapshot.CatchupTargetHeight-snapshot.CatchupCurrentHeight))
+	metric(&output, "tronwatch_catchup_blocks_total", snapshot.CatchupBlocks)
+	metric(&output, "tronwatch_catchup_failovers_total", snapshot.CatchupFailovers)
+	metric(&output, "tronwatch_catchup_failures_total", snapshot.CatchupFailures)
 	headAge := 0.0
 	if !snapshot.HeadTime.IsZero() {
 		headAge = max(0, now.Sub(snapshot.HeadTime).Seconds())

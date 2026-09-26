@@ -2,13 +2,14 @@
 
 `tronwatch` is a lightweight outbound TRON P2P client for real-time transaction monitoring. It connects directly to one or more java-tron peers, filters pending and block transactions against a dynamic set of addresses and contracts, stores matching records in BoltDB, and publishes lifecycle events to configured destinations.
 
-The service is intended for systems that need a small, selected part of the network stream without operating a FullNode solely for event ingestion. It does not provide RPC, TVM execution, historical backfill, or account state.
+The service is intended for systems that need a small, selected part of the network stream without operating a FullNode solely for event ingestion. It does not provide RPC, TVM execution, arbitrary historical queries, or account state.
 
 > **Project status:** `tronwatch` is pre-1.0 software. Validate it against your own peers, traffic, and failure scenarios before relying on it in production. Minor releases may include compatibility changes, which are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## What it does
 
 - receives pending transactions and blocks from multiple TRON peers;
+- resumes the persisted canonical chain through bounded P2P catch-up after downtime;
 - combines all peer observations into one serialized processing stream;
 - filters top-level TRON contracts and recognized TRC-20 calls;
 - reloads watched addresses and contracts from local or remote sources;
@@ -56,7 +57,9 @@ Configuration is strict JSON. Unknown fields, duplicate names, malformed address
   "p2p": {
     "peers": ["127.0.0.1:18888", "10.0.0.2:18888"],
     "network_id": 11111,
-    "advertise_ip": "127.0.0.1"
+    "advertise_ip": "127.0.0.1",
+    "node_id_file": "data/transactions.db.node-id",
+    "catchup": {"enabled": true, "batch_size": 100, "request_timeout": "10s"}
   },
   "storage": {
     "path": "data/transactions.db",
@@ -136,7 +139,7 @@ Deleting BoltDB keys does not immediately shrink the file. Freed pages are reuse
 The observability listener provides:
 
 - `/healthz` for process liveness;
-- `/readyz` for peer, chain, finality, and outbox readiness;
+- `/readyz` for peer, catch-up, chain, finality, and outbox readiness;
 - `/metrics` for Prometheus-format metrics.
 
 The default listener is `127.0.0.1:9464`. A non-loopback address requires `observability.allow_public: true`; expose it only behind appropriate network controls.
@@ -175,7 +178,7 @@ Release builds derive `tronwatch version` and the P2P client version from the ta
 
 - Multiple peers provide redundant observations, not quorum voting or full TRON state validation.
 - The matcher handles top-level contract participants and recognized TRC-20 calldata. Internal TVM transfers and logs require receipt processing from another service.
-- Historical P2P catch-up after downtime is not implemented. A detected parent gap makes readiness fail instead of silently declaring later data canonical.
+- Catch-up resumes only a previously persisted chain and applies the watchlist active while blocks are replayed. It does not scan from genesis or recover old activity for targets added after those blocks were first processed.
 - Remote watch snapshots are retained in memory but are not cached separately for cold startup.
 - Webhook signing, a dead-letter queue, and an online query API are not included.
 

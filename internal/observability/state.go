@@ -19,9 +19,16 @@ type State struct {
 	watchFailures       atomic.Int64
 	prunedBlocks        atomic.Int64
 	prunedTransactions  atomic.Int64
+	catchupBlocks       atomic.Int64
+	catchupFailovers    atomic.Int64
+	catchupFailures     atomic.Int64
 	finalityMu          sync.RWMutex
 	finalityLastSuccess time.Time
 	finalizedNumber     int64
+	catchupMu           sync.RWMutex
+	catchupActive       bool
+	catchupCurrent      int64
+	catchupTarget       int64
 }
 
 func NewState(peers []string) *State {
@@ -70,6 +77,24 @@ func (s *State) StoragePruned(blocks, transactions int) {
 	s.prunedTransactions.Add(int64(transactions))
 }
 
+// CatchupState records whether historical synchronization is required and its heights.
+func (s *State) CatchupState(active bool, _ string, current, target int64) {
+	s.catchupMu.Lock()
+	s.catchupActive = active
+	s.catchupCurrent = current
+	s.catchupTarget = target
+	s.catchupMu.Unlock()
+}
+
+// CatchupBlocks records successfully applied historical blocks.
+func (s *State) CatchupBlocks(count int) { s.catchupBlocks.Add(int64(count)) }
+
+// CatchupFailover records a released sync leader that needs replacement.
+func (s *State) CatchupFailover() { s.catchupFailovers.Add(1) }
+
+// CatchupFailure records a failed historical synchronization session.
+func (s *State) CatchupFailure() { s.catchupFailures.Add(1) }
+
 func (s *State) Snapshot() Snapshot {
 	s.mu.RLock()
 	peers := make(map[string]bool, len(s.peers))
@@ -84,6 +109,9 @@ func (s *State) Snapshot() Snapshot {
 	s.finalityMu.RLock()
 	lastFinality, finalized := s.finalityLastSuccess, s.finalizedNumber
 	s.finalityMu.RUnlock()
+	s.catchupMu.RLock()
+	catchupActive, catchupCurrent, catchupTarget := s.catchupActive, s.catchupCurrent, s.catchupTarget
+	s.catchupMu.RUnlock()
 	return Snapshot{
 		ConfiguredPeers: len(peers), ConnectedPeers: connected, PeerConnected: peers,
 		Sessions: s.sessions.Load(), Reconnects: s.reconnects.Load(),
@@ -92,5 +120,7 @@ func (s *State) Snapshot() Snapshot {
 		PublisherSuccesses: s.publisherSuccesses.Load(), PublisherFailures: s.publisherFailures.Load(),
 		WatchRefreshFailures: s.watchFailures.Load(),
 		PrunedBlocks:         s.prunedBlocks.Load(), PrunedTransactions: s.prunedTransactions.Load(),
+		CatchupActive: catchupActive, CatchupCurrentHeight: catchupCurrent, CatchupTargetHeight: catchupTarget,
+		CatchupBlocks: s.catchupBlocks.Load(), CatchupFailovers: s.catchupFailovers.Load(), CatchupFailures: s.catchupFailures.Load(),
 	}
 }

@@ -223,15 +223,35 @@ func (d *DB) ApplyBlock(block model.Block, records []model.Record) (model.ChainU
 			return ErrFinalizedFork
 		}
 		if ancestor.ID == tipID {
-			if len(added) != 1 {
-				return errors.New("canonical extension is not contiguous")
-			}
-			return d.extendCanonical(tx, blocks, canonical, candidates, meta, &added[0], &result)
+			return d.extendCanonicalBranch(tx, blocks, canonical, candidates, meta, added, &result)
 		}
 		result.Unresolved = unresolved
 		return d.switchCanonical(tx, blocks, canonical, candidates, meta, tipID, tipNumber, ancestor, added, &result)
 	})
 	return result, err
+}
+
+func (d *DB) extendCanonicalBranch(
+	tx *bolt.Tx,
+	blocks, canonical, candidates, meta *bolt.Bucket,
+	added []storedBlock,
+	result *model.ChainUpdate,
+) error {
+	if len(added) == 0 {
+		return errors.New("canonical extension is empty")
+	}
+	slices.Reverse(added)
+	for index := range added {
+		step := model.ChainUpdate{BlockID: added[index].ID}
+		if err := d.extendCanonical(tx, blocks, canonical, candidates, meta, &added[index], &step); err != nil {
+			return err
+		}
+		result.Canonical = true
+		result.NewTipID = step.NewTipID
+		result.IncludedTransactions += step.IncludedTransactions
+		result.ReincludedTransactions += step.ReincludedTransactions
+	}
+	return nil
 }
 
 // Finalize advances the immutable checkpoint only when height and block ID both match.
@@ -467,6 +487,57 @@ func (d *DB) ChainStatus() (model.ChainStatus, error) {
 			}
 			return nil
 		})
+	})
+	return result, err
+}
+
+// ChainLocator returns a sparse, ascending view of the retained canonical chain.
+// It starts at the finalized checkpoint when available and always includes the tip.
+func (d *DB) ChainLocator(maxIDs int) ([]model.BlockRef, error) {
+	if maxIDs < 2 {
+		return nil, errors.New("chain locator limit must be at least two")
+	}
+	var result []model.BlockRef
+	err := d.db.View(func(tx *bolt.Tx) error {
+		_, canonical, meta, err := chainBuckets(tx)
+		if err != nil {
+			return err
+		}
+		tip, anchored := readHeight(meta.Get(metaTipNumber))
+		if !anchored {
+			return nil
+		}
+		low, ok := readHeight(meta.Get(metaFinalizedNumber))
+		if !ok || len(meta.Get(metaFinalizedID)) == 0 {
+			low, ok = readHeight(meta.Get(metaAnchorNumber))
+			if !ok {
+				return errors.New("canonical anchor is missing")
+			}
+		}
+		if low > tip {
+			return errors.New("canonical locator floor is above the tip")
+		}
+
+		heights := make([]int64, 0, maxIDs)
+		for height := low; ; {
+			heights = append(heights, height)
+			if height == tip {
+				break
+			}
+			height += (tip - height + 2) / 2
+		}
+		if len(heights) > maxIDs {
+			heights = append([]int64{heights[0]}, heights[len(heights)-maxIDs+1:]...)
+		}
+		result = make([]model.BlockRef, 0, len(heights))
+		for _, height := range heights {
+			id := string(canonical.Get(heightKey(height)))
+			if id == "" {
+				return fmt.Errorf("canonical block %d is missing", height)
+			}
+			result = append(result, model.BlockRef{ID: id, Number: height})
+		}
+		return nil
 	})
 	return result, err
 }

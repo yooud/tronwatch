@@ -68,6 +68,24 @@ message Inventory {
   repeated bytes ids = 2;
 }
 
+// BlockInventory carries a sparse chain locator during synchronization.
+message BlockInventory {
+  enum Type {
+    SYNC = 0;
+    ADVTISE = 1;
+    FETCH = 2;
+  }
+
+  repeated BlockID ids = 1;
+  Type type = 2;
+}
+
+// ChainInventory returns a common block followed by a contiguous block range.
+message ChainInventory {
+  repeated BlockID ids = 1;
+  int64 remain_num = 2;
+}
+
 message TransactionContract {
   int32 type = 1;
   google.protobuf.Any parameter = 2;

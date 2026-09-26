@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -151,6 +152,7 @@ func runDaemon(ctx context.Context, args []string, stdout, stderr io.Writer) err
 	networkID := flags.Int("network-id", 201910292, "TRON P2P network ID")
 	watchlistPath := flags.String("watchlist", "watchlist.json", "JSON watchlist path")
 	databasePath := flags.String("db", "data/transactions.db", "BoltDB path")
+	nodeIDFile := flags.String("node-id-file", "", "persistent P2P node identity path (default: <db>.node-id)")
 	advertiseIP := flags.String("advertise-ip", "127.0.0.1", "IPv4 address sent in peer hello")
 	reloadInterval := flags.Duration("reload-interval", time.Second, "watchlist poll interval")
 	jsonLog := flags.Bool("json-log", false, "write structured JSON logs")
@@ -209,6 +211,14 @@ func runDaemon(ctx context.Context, args []string, stdout, stderr io.Writer) err
 			logger.Error("closing database", "error", closeErr)
 		}
 	}()
+	nodeIDPath := strings.TrimSpace(*nodeIDFile)
+	if nodeIDPath == "" {
+		nodeIDPath = *databasePath + ".node-id"
+	}
+	nodeID, err := p2p.LoadOrCreateNodeID(nodeIDPath)
+	if err != nil {
+		return err
+	}
 	addresses, contracts := watches.Current().Sizes()
 	logger.Info("watchlist loaded", "addresses", addresses, "contracts", contracts)
 	loggingStore := &logStore{next: database, logger: logger}
@@ -216,6 +226,7 @@ func runDaemon(ctx context.Context, args []string, stdout, stderr io.Writer) err
 	peerPool, err := p2p.NewPool(peers, p2p.Config{
 		NetworkID:   int32(*networkID),
 		AdvertiseIP: *advertiseIP,
+		NodeID:      nodeID,
 		Logger:      logger,
 	}, ingestor)
 	if err != nil {

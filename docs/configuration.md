@@ -11,7 +11,13 @@ Durations use Go notation such as `250ms`, `15s`, `2m`, and `24h`.
   "p2p": {
     "peers": ["127.0.0.1:18888", "10.0.0.2:18888"],
     "network_id": 11111,
-    "advertise_ip": "127.0.0.1"
+    "advertise_ip": "127.0.0.1",
+    "node_id_file": "data/transactions.db.node-id",
+    "catchup": {
+      "enabled": true,
+      "batch_size": 100,
+      "request_timeout": "10s"
+    }
   }
 }
 ```
@@ -21,8 +27,22 @@ Durations use Go notation such as `250ms`, `15s`, `2m`, and `24h`.
 | `peers` | One or more `host:port` endpoints |
 | `network_id` | TRON network identifier; `11111` for mainnet, `201910292` for Nile |
 | `advertise_ip` | IP sent in the P2P hello message |
+| `node_id_file` | Persistent 64-byte P2P identity; defaults to `<storage.path>.node-id` |
+| `catchup.enabled` | Resume a persisted canonical chain after downtime; default `true` |
+| `catchup.batch_size` | Blocks requested per fetch, from `1` through `100`; default `100` |
+| `catchup.request_timeout` | Maximum wait for each chain inventory or block batch; default `10s` |
 
-Every endpoint has an independent reconnect loop. All peers share one local node identity and feed one serialized ingestion stream. The legacy singular field `peer` remains accepted but cannot be combined with `peers`.
+Every endpoint has an independent reconnect loop. All peers share one local node identity and feed one serialized ingestion stream. The identity file is created atomically with mode `0600` and must be retained with the database so restarts do not look like a new peer. Do not reuse one identity file concurrently across instances. The legacy singular field `peer` remains accepted but cannot be combined with `peers`.
+
+java-tron may reject an immediate reconnect with transport code `3` (`RECENT_DISCONNECT`). TronWatch waits 65 seconds before retrying that peer, then resumes from the persisted tip. A persistent node identity does not bypass this peer-side cooldown.
+
+When catch-up is needed, one peer becomes the sync leader and the other connections continue supplying pending transactions. A failed leader enters a cooldown and another eligible peer can continue from the last committed tip. Peers whose retained history starts after that tip are not selected. Readiness remains false until the persisted tip is explicitly confirmed at the remote head.
+
+Fetches are capped at 100 blocks and paced below the java-tron synchronization request limit. Reducing `batch_size` lowers each burst but also reduces catch-up throughput.
+
+A single advertised successor is fetched through the live inventory path. Historical catch-up starts from live inventory only when more than one block is missing, an unresolved parent exists, or another peer has already established a catch-up target.
+
+Catch-up is resume-only: an empty database starts from live traffic instead of downloading the chain from genesis. Replayed blocks use the watchlist that is active at processing time, so this mechanism does not provide retrospective indexing for newly added targets.
 
 ## Storage
 
@@ -247,7 +267,7 @@ Finalization requires an exact match of both block height and block ID between t
 
 The listener serves `/metrics`, `/healthz`, and `/readyz`. A non-loopback bind is rejected unless `allow_public` is explicitly set to `true`.
 
-Readiness checks the configured peer threshold, recent block activity, unresolved chain gaps, required finality freshness, and publisher backlog.
+Readiness checks the configured peer threshold, active historical catch-up, recent block activity, unresolved chain gaps, required finality freshness, and publisher backlog.
 
 ## Runtime and logging
 

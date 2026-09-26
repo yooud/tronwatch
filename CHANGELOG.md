@@ -4,7 +4,8 @@ Notable user-visible changes are recorded in this file. The project follows sema
 
 ## Unreleased
 
-No user-visible changes yet.
+- Added bounded P2P catch-up from the persisted canonical tip after downtime.
+- Added single-leader multi-peer catch-up failover, readiness gating, logs, and Prometheus metrics.
 
 ## 0.4.1 - 2026-09-26
 

@@ -2,7 +2,13 @@
   "p2p": {
     "peers": ["127.0.0.1:18888"],
     "network_id": 11111,
-    "advertise_ip": "127.0.0.1"
+    "advertise_ip": "127.0.0.1",
+    "node_id_file": "data/transactions.db.node-id",
+    "catchup": {
+      "enabled": true,
+      "batch_size": 100,
+      "request_timeout": "10s"
+    }
   },
   "storage": {
     "path": "data/transactions.db",

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yooud/tronwatch/internal/model"
 	"github.com/yooud/tronwatch/internal/protocol"
 )
 
@@ -99,6 +100,20 @@ func TestPoolSharesNodeID(t *testing.T) {
 	}
 	if pool.Size() != 2 || !bytes.Equal(pool.clients[0].nodeID, pool.clients[1].nodeID) {
 		t.Fatalf("pool size/node identities are not shared: %+v", pool.clients)
+	}
+}
+
+func TestPoolSharesOneCatchupCoordinator(t *testing.T) {
+	chain := &testChainReader{refs: []model.BlockRef{{ID: syncTestIDHex(10), Number: 10}}}
+	pool, err := NewPool([]string{"127.0.0.1:18888", "127.0.0.2:18888"}, Config{
+		NetworkID: 201910292, AdvertiseIP: "127.0.0.1",
+		CatchupEnabled: true, CatchupBatchSize: 100, CatchupRequestTimeout: time.Second, Chain: chain,
+	}, HandlerFunc(func(context.Context, *protocol.Transaction, Observation) error { return nil }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pool.clients[0].catchup == nil || pool.clients[0].catchup != pool.clients[1].catchup {
+		t.Fatal("pool clients do not share one catch-up coordinator")
 	}
 }
 

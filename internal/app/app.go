@@ -68,6 +68,10 @@ func New(configuration config.Config, stdout io.Writer, logger *slog.Logger) (*A
 		cleanup = errors.Join(cleanup, database.Close())
 		return nil, errors.Join(cause, cleanup)
 	}
+	nodeID, err := p2p.LoadOrCreateNodeID(configuration.P2P.NodeIDFile)
+	if err != nil {
+		return fail(fmt.Errorf("loading P2P node identity: %w", err), nil, nil)
+	}
 
 	sources, err := buildSources(configuration.Watch.Sources)
 	if err != nil {
@@ -100,8 +104,11 @@ func New(configuration config.Config, stdout io.Writer, logger *slog.Logger) (*A
 	ingestor := ingest.New(manager, repository, time.Now)
 	operations := observability.NewState(configuration.P2P.PeerList())
 	peerPool, err := p2p.NewPool(configuration.P2P.PeerList(), p2p.Config{
-		NetworkID:   configuration.P2P.NetworkID,
-		AdvertiseIP: configuration.P2P.AdvertiseIP, Logger: logger, Observer: operations,
+		NetworkID: configuration.P2P.NetworkID, AdvertiseIP: configuration.P2P.AdvertiseIP,
+		NodeID: nodeID, Logger: logger, Observer: operations, Chain: database,
+		CatchupEnabled:        configuration.P2P.Catchup.Enabled,
+		CatchupBatchSize:      configuration.P2P.Catchup.BatchSize,
+		CatchupRequestTimeout: configuration.P2P.Catchup.RequestTimeout.Duration(),
 	}, ingestor)
 	if err != nil {
 		return fail(err, manager, publishers)
