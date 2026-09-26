@@ -15,3 +15,4 @@ Initial public release.
 - Added BoltDB persistence, fork tracking, exact-hash finality, and bounded retention.
 - Added stdout, JSONL, webhook, and Redis Stream publishers with durable at-least-once delivery.
 - Added health, readiness, Prometheus metrics, and container deployment files.
+- Added automated tagged releases with cross-platform archives, checksums, and SBOM files.

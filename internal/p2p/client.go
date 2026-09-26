@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"tronwatch/internal/protocol"
+	appversion "tronwatch/internal/version"
 )
 
 const (
@@ -22,7 +23,6 @@ const (
 	transportRejectTimeBanned = int32(3)
 	nodeIDLength              = 64
 	maxFetchIDs               = 100
-	codeVersion               = "tronwatch/0.4.1"
 	timeBannedRetryDelay      = 65 * time.Second
 )
 
@@ -368,7 +368,7 @@ func (c *Client) sendTronHello(
 		GenesisBlockId: cloneBlockID(peerHello.GenesisBlockId),
 		SolidBlockId:   cloneBlockID(peerHello.SolidBlockId),
 		HeadBlockId:    cloneBlockID(peerHello.HeadBlockId),
-		CodeVersion:    []byte(codeVersion),
+		CodeVersion:    []byte("tronwatch/" + appversion.Value),
 	}
 	return sendCompressedMessage(connection, messageHello, hello)
 }

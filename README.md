@@ -159,6 +159,18 @@ docker compose -f deploy/compose.yml up --build -d
 
 Review `deploy/config.docker.example.json` before use. The example publishes metrics only on host loopback and stores the database in a named volume.
 
+## Releases
+
+Publishing a semantic-version tag such as `v0.4.1` runs the release workflow. It verifies the source, builds static archives for Linux and macOS on `amd64` and `arm64`, generates SHA-256 checksums and SBOM files, and publishes the assets to the matching GitHub Release.
+
+Verify an archive after download:
+
+```bash
+sha256sum --check checksums.txt
+```
+
+Release builds derive `tronwatch version` and the P2P client version from the tag. The fallback source version remains available for local builds.
+
 ## Limits
 
 - Multiple peers provide redundant observations, not quorum voting or full TRON state validation.

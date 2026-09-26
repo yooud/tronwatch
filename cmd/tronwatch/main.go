@@ -23,9 +23,8 @@ import (
 	"tronwatch/internal/model"
 	"tronwatch/internal/p2p"
 	"tronwatch/internal/store"
+	appversion "tronwatch/internal/version"
 )
-
-const version = "0.4.1"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -75,7 +74,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	if len(args) > 0 && args[0] == "version" {
-		fmt.Fprintln(stdout, version)
+		fmt.Fprintln(stdout, appversion.Value)
 		return 0
 	}
 	if len(args) > 0 && args[0] == "run" {

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"tronwatch/internal/store"
+	appversion "tronwatch/internal/version"
 )
 
 func TestRunVersion(t *testing.T) {
@@ -18,8 +19,8 @@ func TestRunVersion(t *testing.T) {
 	if code := run(context.Background(), []string{"version"}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run(version) code = %d, want 0; stderr=%q", code, stderr.String())
 	}
-	if got := stdout.String(); got != version+"\n" {
-		t.Fatalf("version output = %q, want %q", got, version+"\n")
+	if got := stdout.String(); got != appversion.Value+"\n" {
+		t.Fatalf("version output = %q, want %q", got, appversion.Value+"\n")
 	}
 }
 
