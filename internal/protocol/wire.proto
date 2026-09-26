@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package tronwatch.protocol;
+
+option go_package = "tronwatch/internal/protocol;protocol";
+
+import "google/protobuf/any.proto";
+
+// Endpoint is shared by the libp2p and TRON handshakes.
+message Endpoint {
+  bytes address = 1;
+  int32 port = 2;
+  bytes node_id = 3;
+  bytes address_ipv6 = 4;
+}
+
+// TransportHello is the first, uncompressed libp2p handshake message.
+message TransportHello {
+  Endpoint from = 1;
+  int32 network_id = 2;
+  int32 code = 3;
+  int64 timestamp = 4;
+  int32 version = 5;
+}
+
+message KeepAliveMessage {
+  int64 timestamp = 1;
+}
+
+// CompressMessage wraps every message after the libp2p handshake.
+message CompressMessage {
+  enum CompressType {
+    UNCOMPRESSED = 0;
+    SNAPPY = 1;
+  }
+
+  CompressType type = 1;
+  bytes data = 2;
+}
+
+message BlockID {
+  bytes hash = 1;
+  int64 number = 2;
+}
+
+// TronHello is the application-level TRON handshake.
+message TronHello {
+  Endpoint from = 1;
+  int32 version = 2;
+  int64 timestamp = 3;
+  BlockID genesis_block_id = 4;
+  BlockID solid_block_id = 5;
+  BlockID head_block_id = 6;
+  bytes address = 7;
+  bytes signature = 8;
+  int32 node_type = 9;
+  int64 lowest_block_num = 10;
+  bytes code_version = 11;
+}
+
+message Inventory {
+  enum InventoryType {
+    TRX = 0;
+    BLOCK = 1;
+  }
+
+  InventoryType type = 1;
+  repeated bytes ids = 2;
+}
+
+message TransactionContract {
+  int32 type = 1;
+  google.protobuf.Any parameter = 2;
+  bytes provider = 3;
+  bytes contract_name = 4;
+  int32 permission_id = 5;
+}
+
+message TransactionRaw {
+  bytes ref_block_bytes = 1;
+  int64 ref_block_num = 3;
+  bytes ref_block_hash = 4;
+  int64 expiration = 8;
+  repeated bytes auths = 9;
+  bytes data = 10;
+  repeated TransactionContract contract = 11;
+  bytes scripts = 12;
+  int64 timestamp = 14;
+  int64 fee_limit = 18;
+}
+
+message Transaction {
+  TransactionRaw raw_data = 1;
+  repeated bytes signature = 2;
+  repeated bytes ret = 5;
+}
+
+message Transactions {
+  repeated Transaction transactions = 1;
+}
+
+message BlockHeaderRaw {
+  int64 timestamp = 1;
+  bytes tx_trie_root = 2;
+  bytes parent_hash = 3;
+  int64 number = 7;
+  int64 witness_id = 8;
+  bytes witness_address = 9;
+  int32 version = 10;
+  bytes account_state_root = 11;
+}
+
+message BlockHeader {
+  BlockHeaderRaw raw_data = 1;
+  bytes witness_signature = 2;
+}
+
+message Block {
+  repeated Transaction transactions = 1;
+  BlockHeader block_header = 2;
+}
+
+message TransferContract {
+  bytes owner_address = 1;
+  bytes to_address = 2;
+  int64 amount = 3;
+}
+
+message TriggerSmartContract {
+  bytes owner_address = 1;
+  bytes contract_address = 2;
+  int64 call_value = 3;
+  bytes data = 4;
+  int64 call_token_value = 5;
+  int64 token_id = 6;
+}
